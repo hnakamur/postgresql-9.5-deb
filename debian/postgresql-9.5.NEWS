@@ -1,0 +1,60 @@
+postgresql-9.5 (9.5.13-1) unstable; urgency=medium
+
+  Some functions were incorrectly not marked as VOLATILE. If you are using any
+  of these functions, consult the release notes for instructions.
+
+    query_to_xml cursor_to_xml cursor_to_xmlschema query_to_xmlschema
+    query_to_xml_and_xmlschema
+
+ -- Christoph Berg <myon@debian.org>  Tue, 08 May 2018 20:37:04 +0200
+
+postgresql-9.5 (9.5.12-1) unstable; urgency=medium
+
+  If you run an installation in which not all users are mutually trusting, or
+  if you maintain an application or extension that is intended for use in
+  arbitrary situations, it is strongly recommended that you read the release
+  notes regarding changes around "search_path", and take suitable steps to
+  ensure that your installation or code is secure.
+
+  Also, these changes may cause functions used in index expressions or
+  materialized views to fail during auto-analyze, or when reloading from a
+  dump.  After upgrading, monitor the server logs for such problems, and fix
+  affected functions.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 27 Feb 2018 13:19:05 +0100
+
+postgresql-9.5 (9.5.10-1) unstable; urgency=medium
+
+  If you are using BRIN indexes, it may be necessary to reindex existing
+  indexes. See the release notes for details.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Wed, 08 Nov 2017 10:47:26 +0100
+
+postgresql-9.5 (9.5.2-1) unstable; urgency=medium
+
+  Users of PostgreSQL 9.5.0 or 9.5.1 clusters should note the following change:
+
+    + Disable abbreviated keys for string sorting in non-C locales
+      (Robert Haas)
+
+      PostgreSQL 9.5 introduced logic for speeding up comparisons of string
+      data types by using the standard C library function strxfrm() as a
+      substitute for strcoll().  It now emerges that most versions of glibc
+      (Linux's implementation of the C library) have buggy implementations of
+      strxfrm() that, in some locales, can produce string comparison results
+      that do not match strcoll().  Until this problem can be better
+      characterized, disable the optimization in all non-C locales.  (C locale
+      is safe since it uses neither strcoll() nor strxfrm().)
+
+      Unfortunately, this problem affects not only sorting but also entry
+      ordering in B-tree indexes, which means that B-tree indexes on text,
+      varchar, or char columns may now be corrupt if they sort according to an
+      affected locale and were built or modified under PostgreSQL 9.5.0 or
+      9.5.1. Users should REINDEX indexes that might be affected.
+
+      It is not possible at this time to give an exhaustive list of
+      known-affected locales.  C locale is known safe, and there is no
+      evidence of trouble in English-based locales such as en_US, but some
+      other popular locales such as de_DE are affected in most glibc versions.
+
+ -- Christoph Berg <myon@debian.org>  Tue, 29 Mar 2016 12:57:56 +0200

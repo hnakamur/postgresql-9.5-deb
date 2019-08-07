@@ -1,0 +1,195 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/architecture.mk
+
+MAJOR_VER := 9.5
+#CASSERT_FLAGS := --enable-cassert
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+#PIE# # On jessie/zesty and older, uncomment the #PIE# lines
+#PIE# # "-pie" because it would break linking our .so files
+#PIE# export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
+#PIE# # skip -pie on 32bit archs for performance and stability reasons
+#PIE# # (http://www.postgresql.org/message-id/20140519115318.GB7296@msgid.df7cb.de, #797530)
+#PIE# ifneq ($(DEB_HOST_ARCH_BITS || :),32)
+#PIE# CFLAGS+= -fPIC -pie
+#PIE# else
+#PIE# # if gcc recognizes -no-pie, add it to CFLAGS (exit is 4 for unknown options)
+#PIE# CFLAGS+= $(shell gcc -no-pie 2> /dev/null; [ $$? = 1 ] && echo "-no-pie")
+#PIE# endif
+
+# Facilitate hierarchical profile generation on amd64 (#730134)
+ifeq ($(DEB_HOST_ARCH),amd64)
+CFLAGS+= -fno-omit-frame-pointer
+endif
+
+export DPKG_GENSYMBOLS_CHECK_LEVEL=4
+
+# PostgreSQL 9.5+ does not have native spinlock support on this platform
+ifneq ($(findstring $(DEB_HOST_ARCH), alpha),)
+SPINLOCK_FLAGS = --disable-spinlocks
+endif
+
+COMMON_CONFIGURE_FLAGS= \
+  --mandir=/usr/share/postgresql/$(MAJOR_VER)/man \
+  --docdir=/usr/share/doc/postgresql-doc-$(MAJOR_VER) \
+  --sysconfdir=/etc/postgresql-common \
+  --datarootdir=/usr/share/ \
+  --datadir=/usr/share/postgresql/$(MAJOR_VER) \
+  --bindir=/usr/lib/postgresql/$(MAJOR_VER)/bin \
+  --libdir=/usr/lib/$(DEB_HOST_MULTIARCH)/ \
+  --libexecdir=/usr/lib/postgresql/ \
+  --includedir=/usr/include/postgresql/ \
+  --enable-nls \
+  --enable-integer-datetimes \
+  --enable-thread-safety \
+  --enable-tap-tests \
+  --enable-debug \
+  --enable-dtrace \
+  $(CASSERT_FLAGS) \
+  --disable-rpath \
+  --with-uuid=e2fs \
+  --with-gnu-ld \
+  --with-pgport=5432 \
+  --with-system-tzdata=/usr/share/zoneinfo \
+  $(SELINUX_FLAGS) \
+  $(SPINLOCK_FLAGS) \
+  MKDIR_P='/bin/mkdir -p' \
+  TAR='/bin/tar' \
+  CFLAGS='$(CFLAGS)' \
+  LDFLAGS='$(LDFLAGS)' \
+  DPKG_VERSION=$(shell dpkg-parsechangelog | awk '/^Version:/ { print $$2 }') \
+  DPKG_VENDOR=$(shell dpkg-vendor --query vendor)
+
+# allow missing krb5 and ldap during bootstrapping
+ifeq ($(DEB_STAGE),stage1)
+BOOTSTRAP_FLAGS=
+else
+BOOTSTRAP_FLAGS= --with-gssapi --with-ldap \
+		 --with-includes=/usr/include/mit-krb5 \
+		 --with-libs=/usr/lib/mit-krb5 \
+		 --with-libs=/usr/lib/$(DEB_HOST_MULTIARCH)/mit-krb5
+endif
+
+ifeq ($(DEB_HOST_ARCH_OS),linux)
+SELINUX_FLAGS= --with-selinux
+else
+SELINUX_EXCLUDE= -Xsepgsql
+endif
+
+%:
+	dh $@
+
+override_dh_auto_configure: stamp/configure-build stamp/configure-build-py3
+
+stamp/configure-build:
+	mkdir -p stamp
+	dh_auto_configure --builddirectory=build -- \
+           --with-tcl \
+           --with-perl \
+           --with-python \
+           --with-pam \
+           --with-openssl \
+           --with-libxml \
+           --with-libxslt \
+           PYTHON=/usr/bin/python \
+           $(COMMON_CONFIGURE_FLAGS) \
+           $(BOOTSTRAP_FLAGS)
+	rm -fv doc/src/sgml/*-stamp
+	touch "$@"
+	
+stamp/configure-build-py3:
+	mkdir -p stamp
+	dh_auto_configure --builddirectory=build-py3 -- \
+           --with-python \
+           PYTHON=/usr/bin/python3 \
+           $(COMMON_CONFIGURE_FLAGS)
+	touch "$@"
+
+override_dh_auto_build: stamp/build stamp/build-py3
+
+stamp/build: stamp/configure-build
+	cd build && $(MAKE) world
+
+	# build tutorial stuff
+	$(MAKE) -C build/src/tutorial NO_PGXS=1
+
+	touch "$@"
+
+stamp/build-py3: stamp/configure-build-py3
+	$(MAKE) -C build-py3/src/backend/ submake-errcodes
+	$(MAKE) -C build-py3/src/pl/plpython
+	$(MAKE) -C build-py3/contrib/hstore_plpython
+	touch "$@"
+
+override_dh_auto_install:
+	$(MAKE) -C build install-world DESTDIR=$(CURDIR)/debian/tmp
+	$(MAKE) -C build-py3/src/pl/plpython install DESTDIR=$(CURDIR)/debian/postgresql-plpython3-$(MAJOR_VER)
+	$(MAKE) -C build-py3/contrib/hstore_plpython install DESTDIR=$(CURDIR)/debian/postgresql-plpython3-$(MAJOR_VER)
+	# remove files duplicated from postgresql and -server-dev
+	rm -rf debian/postgresql-plpython3-$(MAJOR_VER)/usr/include
+	rm -rf debian/postgresql-plpython3-$(MAJOR_VER)/usr/share/locale
+	# remove files from the "wrong" python package
+	rm -fv debian/postgresql-plpython3-$(MAJOR_VER)/usr/share/postgresql/$(MAJOR_VER)/extension/*plpython[2u]*
+	# compress manpages
+	gzip -9n $(CURDIR)/debian/tmp/usr/share/postgresql/*/man/man*/*.[137]
+
+override_dh_makeshlibs:
+	dh_makeshlibs -Xusr/lib/postgresql/$(MAJOR_VER)
+
+override_dh_auto_clean:
+	rm -rf build* stamp
+
+override_dh_installchangelogs:
+	dh_installchangelogs HISTORY
+
+override_dh_compress:
+	dh_compress -X.source -X.c
+
+override_dh_install:
+ifneq ($(SELINUX_EXCLUDE),)
+	# work around dh_install -X not working on globs (see also #350570)
+	sed -i -e '/sepgsql/d' debian/postgresql-contrib-*.install
+endif
+	dh_install --fail-missing $(SELINUX_EXCLUDE)
+
+	mkdir -p debian/postgresql-$(MAJOR_VER)/usr/share/doc/postgresql-$(MAJOR_VER)
+	ln -s ../postgresql-common/README.Debian.gz debian/postgresql-$(MAJOR_VER)/usr/share/doc/postgresql-$(MAJOR_VER)/README.Debian.gz
+
+	# these go into the -pl* packages; -f because they don't exist for an -A build
+	rm -f debian/postgresql-contrib-$(MAJOR_VER)/usr/share/postgresql/$(MAJOR_VER)/extension/pl*
+	rm -f debian/postgresql-contrib-$(MAJOR_VER)/usr/share/postgresql/$(MAJOR_VER)/extension/*_pl*
+
+	# remove actual build path from Makefile.global for reproducibility
+	sed -i -e "s!^abs_top_builddir.*!abs_top_builddir = /build/postgresql-$(MAJOR_VER)/build!" \
+	       -e "s!^abs_top_srcdir.*!abs_top_srcdir = /build/postgresql-$(MAJOR_VER)/build/..!" \
+	       debian/postgresql-server-dev-$(MAJOR_VER)/usr/lib/postgresql/$(MAJOR_VER)/lib/pgxs/src/Makefile.global
+
+	if [ -d debian/postgresql-doc-$(MAJOR_VER) ]; then set -e; \
+		install -d debian/postgresql-doc-$(MAJOR_VER)/usr/share/doc/postgresql-doc-$(MAJOR_VER)/tutorial; \
+		install src/tutorial/*.c src/tutorial/*.source src/tutorial/Makefile src/tutorial/README debian/postgresql-doc-$(MAJOR_VER)/usr/share/doc/postgresql-doc-$(MAJOR_VER)/tutorial; \
+	fi
+
+override_dh_auto_test:
+ifeq (, $(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+	# when tests fail, print newest 3 log files
+	# initdb doesn't like LANG and LC_ALL to contradict, unset LANG and LC_CTYPE here
+	# temp-install wants to be invoked from a top-level make, unset MAKELEVEL here
+	# hurd doesn't implement semaphores shared between processes yet; succeed anyway so they at least have libpq5
+	# plperl currently fails on kfreebsd-*
+	unset LANG LC_CTYPE MAKELEVEL; if ! make -C build check-world EXTRA_REGRESS_OPTS='--port=$(shell perl -le 'print 1024 + int(rand(64000))')'; then \
+	    for l in `find build \( -name regression.diffs -o -name initdb.log -o -name postmaster.log \) | perl -we 'print map { "$$_\n"; } sort { (stat $$a)[9] <=> (stat $$b)[9] } map { chomp; $$_; } <>' | tail -3`; do \
+		echo "******** $$l ********"; \
+		cat $$l; \
+	    done; \
+	    case $(DEB_HOST_ARCH) in \
+	        hurd-*|kfreebsd-*) exit 0 ;; \
+	        *) exit 1 ;; \
+	    esac; \
+	fi
+endif
+
+override_dh_strip:
+	dh_strip --dbg-package=postgresql-$(MAJOR_VER)-dbg

@@ -1,0 +1,97 @@
+commit 9a83564c58b7f6363141a8f1d0c87c89a5ebab5d
+Author: Peter Eisentraut <peter_e@gmx.net>
+Date:   Sat Mar 19 11:03:22 2016 +0100
+
+    Allow SSL server key file to have group read access if owned by root
+    
+    We used to require the server key file to have permissions 0600 or less
+    for best security.  But some systems (such as Debian) have certificate
+    and key files managed by the operating system that can be shared with
+    other services.  In those cases, the "postgres" user is made a member of
+    a special group that has access to those files, and the server key file
+    has permissions 0640.  To accommodate that kind of setup, also allow the
+    key file to have permissions 0640 but only if owned by root.
+    
+    From: Christoph Berg <myon@debian.org>
+    Reviewed-by: Alvaro Herrera <alvherre@alvh.no-ip.org>
+
+diff --git a/doc/src/sgml/runtime.sgml b/doc/src/sgml/runtime.sgml
+index c699f21..4a0e35a 100644
+--- a/doc/src/sgml/runtime.sgml
++++ b/doc/src/sgml/runtime.sgml
+@@ -2147,9 +2147,20 @@ pg_dumpall -p 5432 | psql -d postgres -p 5433
+    the server's data directory, but other names and locations can be specified
+    using the configuration parameters <xref linkend="guc-ssl-cert-file">
+    and <xref linkend="guc-ssl-key-file">.
++  </para>
++
++  <para>
+    On Unix systems, the permissions on <filename>server.key</filename> must
+    disallow any access to world or group; achieve this by the command
+-   <command>chmod 0600 server.key</command>.
++   <command>chmod 0600 server.key</command>.  Alternatively, the file can be
++   owned by root and have group read access (that is, <literal>0640</literal>
++   permissions).  That setup is intended for installations where certificate
++   and key files are managed by the operating system.  The user under which
++   the <productname>PostgreSQL</productname> server runs should then be made a
++   member of the group that has access to those certificate and key files.
++  </para>
++
++  <para>
+    If the private key is protected with a passphrase, the
+    server will prompt for the passphrase and will not start until it has
+    been entered.
+diff --git a/src/backend/libpq/be-secure-openssl.c b/src/backend/libpq/be-secure-openssl.c
+index 1e3dfb6..6009663 100644
+--- a/src/backend/libpq/be-secure-openssl.c
++++ b/src/backend/libpq/be-secure-openssl.c
+@@ -206,8 +206,30 @@ be_tls_init(void)
+ 					 errmsg("could not access private key file \"%s\": %m",
+ 							ssl_key_file)));
+ 
++		if (!S_ISREG(buf.st_mode))
++			ereport(FATAL,
++					(errcode(ERRCODE_CONFIG_FILE_ERROR),
++					 errmsg("private key file \"%s\" is not a regular file",
++							ssl_key_file)));
++
++		/*
++		 * Refuse to load files owned by users other than us or root.
++		 *
++		 * XXX surely we can check this on Windows somehow, too.
++		 */
++#if !defined(WIN32) && !defined(__CYGWIN__)
++		if (buf.st_uid != geteuid() && buf.st_uid != 0)
++			ereport(FATAL,
++					(errcode(ERRCODE_CONFIG_FILE_ERROR),
++					 errmsg("private key file \"%s\" must be owned by the database user or root",
++							ssl_key_file)));
++#endif
++
+ 		/*
+-		 * Require no public access to key file.
++		 * Require no public access to key file. If the file is owned by us,
++		 * require mode 0600 or less. If owned by root, require 0640 or less
++		 * to allow read access through our gid, or a supplementary gid that
++		 * allows to read system-wide certificates.
+ 		 *
+ 		 * XXX temporarily suppress check when on Windows, because there may
+ 		 * not be proper support for Unix-y file permissions.  Need to think
+@@ -215,12 +237,13 @@ be_tls_init(void)
+ 		 * directory permission check in postmaster.c)
+ 		 */
+ #if !defined(WIN32) && !defined(__CYGWIN__)
+-		if (!S_ISREG(buf.st_mode) || buf.st_mode & (S_IRWXG | S_IRWXO))
++		if ((buf.st_uid == geteuid() && buf.st_mode & (S_IRWXG | S_IRWXO)) ||
++			(buf.st_uid == 0 && buf.st_mode & (S_IWGRP | S_IXGRP | S_IRWXO)))
+ 			ereport(FATAL,
+ 					(errcode(ERRCODE_CONFIG_FILE_ERROR),
+-				  errmsg("private key file \"%s\" has group or world access",
+-						 ssl_key_file),
+-				   errdetail("Permissions should be u=rw (0600) or less.")));
++					 errmsg("private key file \"%s\" has group or world access",
++							ssl_key_file),
++					 errdetail("File must have permissions u=rw (0600) or less if owned by the database user, or permissions u=rw,g=r (0640) or less if owned by root.")));
+ #endif
+ 
+ 		if (SSL_CTX_use_PrivateKey_file(SSL_context,

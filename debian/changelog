@@ -1,0 +1,534 @@
+postgresql-9.5 (9.5.19-1.pgdg18.04+1) bionic-pgdg; urgency=medium
+
+  * Rebuild for bionic-pgdg.
+  * Changes applied by generate-pgdg-source:
+    + Moving lib packages to component 9.5.
+
+ -- PostgreSQL on Debian and Ubuntu <pgsql-pkg-debian@lists.postgresql.org>  Wed, 07 Aug 2019 14:45:20 +0200
+
+postgresql-9.5 (9.5.19-1) unstable; urgency=medium
+
+  * New upstream version.
+
+    + Fixes regression in ALTER TABLE on multiple columns. (Closes: #932247)
+
+    + Require schema qualification to cast to a temporary type when using
+      functional cast syntax (Noah Misch)
+
+      We have long required invocations of temporary functions to explicitly
+      specify the temporary schema, that is pg_temp.func_name(args). Require
+      this as well for casting to temporary types using functional notation,
+      for example pg_temp.type_name(arg). Otherwise it's possible to capture a
+      function call using a temporary object, allowing privilege escalation in
+      much the same ways that we blocked in CVE-2007-2138. (CVE-2019-10208)
+
+  * debian/pycompat: Obsolete, remove.
+  * debian/patches: Add missing patch documentation.
+  * debian/*.symbols: Add Build-Depends-Package information.
+  * debian/tests: Also run regression tests.
+  * debian/tests/control: Add fakeroot to dependencies.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 07 Aug 2019 14:45:20 +0200
+
+postgresql-9.5 (9.5.18-1) unstable; urgency=medium
+
+  * New upstream version.
+
+ -- Christoph Berg <myon@debian.org>  Tue, 18 Jun 2019 11:13:09 +0200
+
+postgresql-9.5 (9.5.17-1) unstable; urgency=medium
+
+  * New upstream version.
+    + Prevent row-level security policies from being bypassed via selectivity
+      estimators (Dean Rasheed)
+
+      Some of the planner's selectivity estimators apply user-defined
+      operators to values found in pg_statistic (e.g., most-common values).
+      A leaky operator therefore can disclose some of the entries in a data
+      column, even if the calling user lacks permission to read that column.
+      In CVE-2017-7484 we added restrictions to forestall that, but we failed
+      to consider the effects of row-level security.  A user who has SQL
+      permission to read a column, but who is forbidden to see certain rows
+      due to RLS policy, might still learn something about those rows'
+      contents via a leaky operator.  This patch further tightens the rules,
+      allowing leaky operators to be applied to statistics data only when
+      there is no relevant RLS policy.  (CVE-2019-10130)
+
+ -- Christoph Berg <myon@debian.org>  Tue, 07 May 2019 12:53:13 +0200
+
+postgresql-9.5 (9.5.16-1) unstable; urgency=medium
+
+  * New upstream version.
+  * Drop explicit xz compression for .debs.
+  * Depend on locales | locales-all. Suggested by Elrond, thanks!
+    (Closes: #916655)
+  * Build-Depend on tcl-dev instead of on a specific version.
+  * initdb doesn't like LANG and LC_ALL to contradict, unset LANG and
+    LC_CTYPE at test time. (Closes: #917764)
+  * On purge, ask the user if they want to remove clusters. (Closes: #911940)
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Thu, 14 Feb 2019 15:24:49 +0100
+
+postgresql-9.5 (9.5.15-1) unstable; urgency=medium
+
+  * New upstream version.
+  * Enable dtrace support.
+  * psql uses sensible-editor, depend on sensible-utils.
+  * Add lintian overrides for plugins that link no external libraries.
+  * configure: Hard-code paths to /bin/mkdir -p and /bin/tar.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 06 Nov 2018 15:12:21 +0100
+
+postgresql-9.5 (9.5.14-1) unstable; urgency=medium
+
+  * New upstream version.
+    + Fix failure to reset libpq's state fully between connection attempts
+
+      An unprivileged user of dblink or postgres_fdw could bypass the checks
+      intended to prevent use of server-side credentials, such as a ~/.pgpass
+      file owned by the operating-system user running the server.  Servers
+      allowing peer authentication on local connections are particularly
+      vulnerable.  Other attacks such as SQL injection into a postgres_fdw
+      session are also possible. Attacking postgres_fdw in this way requires
+      the ability to create a foreign server object with selected connection
+      parameters, but any user with access to dblink could exploit the
+      problem. In general, an attacker with the ability to select the
+      connection parameters for a libpq-using application could cause
+      mischief, though other plausible attack scenarios are harder to think
+      of. Our thanks to Andrew Krasichkov for reporting this issue.
+      (CVE-2018-10915)
+
+    + Fix INSERT ... ON CONFLICT UPDATE through a view that isn't just SELECT
+      FROM ...
+
+      Erroneous expansion of an updatable view could lead to crashes or
+      attribute ... has the wrong type errors, if the view's SELECT list
+      doesn't match one-to-one with the underlying table's columns.
+      Furthermore, this bug could be leveraged to allow updates of columns
+      that an attacking user lacks UPDATE privilege for, if that user has
+      INSERT and UPDATE privileges for some other column(s) of the table. Any
+      user could also use it for disclosure of server memory. (CVE-2018-10925)
+
+  * debian/rules: Set DEB_HOST_* via /usr/share/dpkg/architecture.mk.
+  * Drop support for tcl8.5.
+  * Remove version checking for libselinux1-dev, 2.1.10 is old enough now.
+  * Refactor testsuite failure handling.
+  * Use dh_auto_configure to correctly seed the build architecture.
+  * Add new pgtypes header and symbol.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 07 Aug 2018 13:50:32 +0200
+
+postgresql-9.5 (9.5.13-2) unstable; urgency=medium
+
+  * Update libpq_pgport in Makefile.global to find libpgcommon/libpgport in
+    pkglibdir.
+
+ -- Christoph Berg <myon@debian.org>  Sun, 20 May 2018 20:02:54 +0200
+
+postgresql-9.5 (9.5.13-1) unstable; urgency=medium
+
+  * New upstream version.
+    + Fix incorrect volatility markings on a few built-in functions.
+
+  * Move libpgport.a and libpgcommon.a from libdir to pkglibdir.
+  * Remove hurd semaphores patch.
+
+ -- Christoph Berg <myon@debian.org>  Tue, 08 May 2018 20:37:04 +0200
+
+postgresql-9.5 (9.5.12-1) unstable; urgency=medium
+
+  * New upstream version.
+
+    If you run an installation in which not all users are mutually
+    trusting, or if you maintain an application or extension that is
+    intended for use in arbitrary situations, it is strongly recommended
+    that you read the documentation changes described in the first changelog
+    entry below, and take suitable steps to ensure that your installation or
+    code is secure.
+
+    Also, the changes described in the second changelog entry below may
+    cause functions used in index expressions or materialized views to fail
+    during auto-analyze, or when reloading from a dump.  After upgrading,
+    monitor the server logs for such problems, and fix affected functions.
+
+    + Document how to configure installations and applications to guard
+      against search-path-dependent trojan-horse attacks from other users
+
+      Using a search_path setting that includes any schemas writable by a
+      hostile user enables that user to capture control of queries and then
+      run arbitrary SQL code with the permissions of the attacked user.  While
+      it is possible to write queries that are proof against such hijacking,
+      it is notationally tedious, and it's very easy to overlook holes.
+      Therefore, we now recommend configurations in which no untrusted schemas
+      appear in one's search path.
+      (CVE-2018-1058)
+
+    + Avoid use of insecure search_path settings in pg_dump and other client
+      programs
+
+      pg_dump, pg_upgrade, vacuumdb and other PostgreSQL-provided applications
+      were themselves vulnerable to the type of hijacking described in the
+      previous changelog entry; since these applications are commonly run by
+      superusers, they present particularly attractive targets.  To make them
+      secure whether or not the installation as a whole has been secured,
+      modify them to include only the pg_catalog schema in their search_path
+      settings. Autovacuum worker processes now do the same, as well.
+
+      In cases where user-provided functions are indirectly executed by these
+      programs -- for example, user-provided functions in index expressions --
+      the tighter search_path may result in errors, which will need to be
+      corrected by adjusting those user-provided functions to not assume
+      anything about what search path they are invoked under.  That has always
+      been good practice, but now it will be necessary for correct behavior.
+      (CVE-2018-1058)
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 27 Feb 2018 13:18:20 +0100
+
+postgresql-9.5 (9.5.11-1) unstable; urgency=medium
+
+  * New upstream version.
+    + Ensure that all temporary files made by pg_upgrade are
+      non-world-readable (CVE-2018-1053)
+
+  * Show package version number in version().
+  * Remove actual build path from Makefile.global for reproducibility.
+
+ -- Christoph Berg <myon@debian.org>  Sat, 02 Dec 2017 21:31:24 +0100
+
+postgresql-9.5 (9.5.10-1) unstable; urgency=medium
+
+  * New upstream version.
+
+    + Ensure that INSERT ... ON CONFLICT DO UPDATE checks table permissions
+      and RLS policies in all cases (Dean Rasheed)
+
+      The update path of INSERT ... ON CONFLICT DO UPDATE requires SELECT
+      permission on the columns of the arbiter index, but it failed to check
+      for that in the case of an arbiter specified by constraint name. In
+      addition, for a table with row level security enabled, it failed to
+      check updated rows against the table's SELECT policies (regardless of
+      how the arbiter index was specified). (CVE-2017-15099)
+
+    + Fix crash due to rowtype mismatch in json{b}_populate_recordset()
+      (Michael Paquier, Tom Lane)
+
+      These functions used the result rowtype specified in the FROM ... AS
+      clause without checking that it matched the actual rowtype of the
+      supplied tuple value.  If it didn't, that would usually result in a
+      crash, though disclosure of server memory contents seems possible as
+      well. (CVE-2017-15098)
+
+    + Fix BRIN index summarization to handle concurrent table extension
+      correctly (Álvaro Herrera)
+
+      Previously, a race condition allowed some table rows to be omitted from
+      the index.  It may be necessary to reindex existing BRIN indexes to
+      recover from past occurrences of this problem.
+
+  * Remove empty conf.d directory on purge, even when postgresql-common
+    was already removed. (Closes: #877264)
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Wed, 08 Nov 2017 10:40:59 +0100
+
+postgresql-9.5 (9.5.9-1) unstable; urgency=medium
+
+  * New upstream version.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 29 Aug 2017 12:19:01 +0200
+
+postgresql-9.5 (9.5.8-1) unstable; urgency=medium
+
+  * New upstream version.
+
+    + Further restrict visibility of pg_user_mappings.umoptions, to protect
+      passwords stored as user mapping options. See the release notes for
+      instructions for applying the fix to existing database clusters.
+      (CVE-2017-7547; extends fix for CVE-2017-7484)
+    + Disallow empty passwords in all password-based authentication methods.
+      (CVE-2017-7546)
+    + Make lo_put() check for UPDATE privilege on the target large object.
+      (CVE-2017-7548)
+
+  * On regression test failure, show newest three log files instead of relying
+    on file age = 0 min.
+  * debian/rules: Unconditionally use DEB_BUILD_MAINT_OPTIONS=hardening=+all.
+    The old logic is kept around for compiling on older distributions.
+  * Remove long obsolete --with-krb5 and move c/ldflags to configure switches.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 09 Aug 2017 20:01:00 +0200
+
+postgresql-9.5 (9.5.7-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream version.
+
+    + Restrict visibility of pg_user_mappings.umoptions, to protect passwords
+      stored as user mapping options (CVE-2017-7486)
+    + Prevent exposure of statistical information via leaky operators
+      (CVE-2017-7484)
+    + Restore libpq's recognition of the PGREQUIRESSL environment variable
+      (CVE-2017-7485)
+
+  * debian/rules: Add stub to enable cassert builds (disabled by default).
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 09 May 2017 15:19:23 +0200
+
+postgresql-9.5 (9.5.6-1) unstable; urgency=medium
+
+  * Team Upload.
+  * New upstream version.
+
+    + Fix a race condition that could cause indexes built with CREATE INDEX
+      CONCURRENTLY to be corrupt (Pavan Deolasee, Tom Lane)
+
+      If CREATE INDEX CONCURRENTLY was used to build an index that depends on
+      a column not previously indexed, then rows inserted or updated by
+      transactions that ran concurrently with the CREATE INDEX command could
+      have received incorrect index entries.  If you suspect this may have
+      happened, the most reliable solution is to rebuild affected indexes
+      after installing this update.
+
+  [ Martin Pitt ]
+  * Add missing perl test dependency (for Test::More).
+
+  [ Christoph Berg ]
+  * Update watch file to use https.
+  * Drop hardening-wrapper.
+  * Explicitly disable PIE on 32 architectures. Previously we were just not
+    enabling it, but it's on by default now in unstable. Closes: #842752.
+  * libpq-dev: Remove dependency on libssl-dev (and comerr-dev and
+    krb5-multidev) to unbreak co-installation with libssl1.0-dev.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 07 Feb 2017 12:15:28 +0100
+
+postgresql-9.5 (9.5.5-1) unstable; urgency=medium
+
+  * New upstream version.
+
+    A dump/restore is not required for those running 9.5.X.
+
+    However, if your installation has been affected by the bug described in
+    the first changelog entry below, then after updating you may need to take
+    action to repair corrupted free space maps.
+
+    + Fix WAL-logging of truncation of relation free space maps and visibility
+      maps (Pavan Deolasee, Heikki Linnakangas)
+
+      It was possible for these files to not be correctly restored during
+      crash recovery, or to be written incorrectly on a standby server. Bogus
+      entries in a free space map could lead to attempts to access pages that
+      have been truncated away from the relation itself, typically producing
+      errors like could not read block XXX: read only 0 of 8192 bytes.
+      Checksum failures in the visibility map are also possible, if
+      checksumming is enabled.
+
+      Procedures for determining whether there is a problem and repairing it
+      if so are discussed at
+      https://wiki.postgresql.org/wiki/Free_Space_Map_Problems.
+
+ -- Christoph Berg <myon@debian.org>  Tue, 25 Oct 2016 12:42:41 +0200
+
+postgresql-9.5 (9.5.4-1) unstable; urgency=medium
+
+  * New upstream version.
+
+    + Fix possible mis-evaluation of nested CASE-WHEN expressions
+      (Heikki Linnakangas, Michael Paquier, Tom Lane)
+
+      A CASE expression appearing within the test value subexpression of
+      another CASE could become confused about whether its own test value was
+      null or not.  Also, inlining of a SQL function implementing the equality
+      operator used by a CASE expression could result in passing the wrong
+      test value to functions called within a CASE expression in the SQL
+      function's body.  If the test values were of different data types, a
+      crash might result; moreover such situations could be abused to allow
+      disclosure of portions of server memory.  (CVE-2016-5423)
+
+    + Fix client programs' handling of special characters in database and role
+      names (Noah Misch, Nathan Bossart, Michael Paquier)
+
+      Numerous places in vacuumdb and other client programs could become
+      confused by database and role names containing double quotes or
+      backslashes.  Tighten up quoting rules to make that safe. Also, ensure
+      that when a conninfo string is used as a database name parameter to
+      these programs, it is correctly treated as such throughout.
+
+      Fix handling of paired double quotes in psql's \connect and \password
+      commands to match the documentation.
+
+      Introduce a new -reuse-previous option in psql's \connect command to
+      allow explicit control of whether to re-use connection parameters from a
+      previous connection.  (Without this, the choice is based on whether the
+      database name looks like a conninfo string, as before.)  This allows
+      secure handling of database names containing special characters in
+      pg_dumpall scripts.
+
+      pg_dumpall now refuses to deal with database and role names containing
+      carriage returns or newlines, as it seems impractical to quote those
+      characters safely on Windows.  In future we may reject such names on the
+      server side, but that step has not been taken yet.
+
+      These are considered security fixes because crafted object names
+      containing special characters could have been used to execute commands
+      with superuser privileges the next time a superuser executes pg_dumpall
+      or other routine maintenance operations.  (CVE-2016-5424)
+
+  * Remove conditional multi-arch compilation, all supported dists are
+    multi-arched now.
+  * Use explicit xz compression for wheezy and precise
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 09 Aug 2016 17:19:59 +0200
+
+postgresql-9.5 (9.5.3-1) unstable; urgency=medium
+
+  * New upstream version.
+  * rules: Use host architecture for all architecture checks.
+  * Use POSIX semaphores on hurd. They don't work yet, but have better chances
+    of eventually getting implemented.  Closes: #820743.
+  * Bump minimum postgresql-common version for postgresql-9.5 to 158 due to
+    PG_OOM_ADJUST_FILE.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 10 May 2016 10:18:45 +0200
+
+postgresql-9.5 (9.5.2-1) unstable; urgency=medium
+
+  * New upstream version.
+
+    + Disable abbreviated keys for string sorting in non-C locales
+      (Robert Haas)
+
+      PostgreSQL 9.5 introduced logic for speeding up comparisons of string
+      data types by using the standard C library function strxfrm() as a
+      substitute for strcoll().  It now emerges that most versions of glibc
+      (Linux's implementation of the C library) have buggy implementations of
+      strxfrm() that, in some locales, can produce string comparison results
+      that do not match strcoll().  Until this problem can be better
+      characterized, disable the optimization in all non-C locales.  (C locale
+      is safe since it uses neither strcoll() nor strxfrm().)
+
+      Unfortunately, this problem affects not only sorting but also entry
+      ordering in B-tree indexes, which means that B-tree indexes on text,
+      varchar, or char columns may now be corrupt if they sort according to an
+      affected locale and were built or modified under PostgreSQL 9.5.0 or
+      9.5.1. Users should REINDEX indexes that might be affected.
+
+      It is not possible at this time to give an exhaustive list of
+      known-affected locales.  C locale is known safe, and there is no
+      evidence of trouble in English-based locales such as en_US, but some
+      other popular locales such as de_DE are affected in most glibc versions.
+
+    + Maintain row-security status properly in cached plans (Stephen Frost)
+
+      In a session that performs queries as more than one role, the plan cache
+      might incorrectly re-use a plan that was generated for another role ID,
+      thus possibly applying the wrong set of policies when row-level security
+      (RLS) is in use. (CVE-2016-2193)
+
+    + Add must-be-superuser checks to some new contrib/pageinspect functions
+      (Andreas Seltenreich)
+
+      Most functions in the pageinspect extension that inspect bytea values
+      disallow calls by non-superusers, but brin_page_type() and
+      brin_metapage_info() failed to do so.  Passing contrived bytea values to
+      them might crash the server or disclose a few bytes of server memory.
+      Add the missing permissions checks to prevent misuse. (CVE-2016-3065)
+
+  * 02-relax-sslkey-permscheck.patch: Replace with what went upstream in 9.6.
+  * Stop suggesting the use of identd.
+  * Modernize server package description.
+  * Recommend sysstat.
+
+ -- Christoph Berg <myon@debian.org>  Tue, 29 Mar 2016 12:22:08 +0200
+
+postgresql-9.5 (9.5.1-1) unstable; urgency=medium
+
+  * New upstream version.
+    + Fix infinite loops and buffer-overrun problems in regular expressions.
+      Very large character ranges in bracket expressions could cause infinite
+      loops in some cases, and memory overwrites in other cases.
+      (CVE-2016-0773)
+
+  * Fix installation path of contrib examples.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Wed, 10 Feb 2016 13:04:39 +0100
+
+postgresql-9.5 (9.5.0-3) unstable; urgency=medium
+
+  * Move spinlock flag to common configure flags, the python3 build needs that
+    as well.
+  * Update debian/copyright to please DEP-5.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Thu, 04 Feb 2016 13:08:13 +0100
+
+postgresql-9.5 (9.5.0-2) unstable; urgency=medium
+
+  * Disable spinlocks on alpha. Performance will be poor, but at least they
+    will have a libpq package.
+  * Add logrotate to test dependencies.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Wed, 13 Jan 2016 11:12:10 +0100
+
+postgresql-9.5 (9.5.0-1) unstable; urgency=medium
+
+  * First 9.5 release.
+  * src/bin/pg_xlogdump/Makefile: Sort list of objects to make build
+    reproducible.
+
+ -- Christoph Berg <myon@debian.org>  Mon, 04 Jan 2016 23:00:37 +0100
+
+postgresql-9.5 (9.5~rc1-1) experimental; urgency=medium
+
+  * First 9.5 release candidate.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Thu, 17 Dec 2015 16:10:44 +0100
+
+postgresql-9.5 (9.5~beta2-2) experimental; urgency=medium
+
+  * debian/rules: Work around dh_install -X not working on globs.
+    (See also #350570)
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Mon, 16 Nov 2015 16:53:39 +0100
+
+postgresql-9.5 (9.5~beta2-1) experimental; urgency=medium
+
+  * Second 9.5 beta release.
+  * 64-pg_upgrade-sockdir: Fix off-by-one error in max path length.
+  * libpq5.symbols: PQsslAttributes was renamed to PQsslAttributeNames.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 10 Nov 2015 12:50:00 +0100
+
+postgresql-9.5 (9.5~beta1-1) experimental; urgency=medium
+
+  * First 9.5 beta release.
+
+    A dump/restore using pg_dumpall, or use of pg_upgrade, is required for
+    those wishing to migrate data from any previous 9.5 release.
+
+    Version 9.5 contains a number of changes that may affect compatibility
+    with previous releases.  See the release notes for details.
+
+  * debian/rules: Remove broken "generate POT files for translators" code.
+  * debian/rules: Call dh without --parallel, it's not supported upstream.
+  * postgresql postrm: Don't clean {/etc,/var/lib,/var/log}/postgresql on 
+    purge.  (Closes: #793861)
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 06 Oct 2015 11:12:34 +0200
+
+postgresql-9.5 (9.5~alpha2-1) experimental; urgency=medium
+
+  * New alpha release.
+  * Add docbook-xml to build-depends.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 04 Aug 2015 11:17:47 +0200
+
+postgresql-9.5 (9.5~alpha1-1) experimental; urgency=medium
+
+  * First 9.5 alpha release.
+
+ -- Christoph Berg <christoph.berg@credativ.de>  Tue, 30 Jun 2015 17:50:22 +0200
+
+postgresql-9.5 (9.5~~devel-1) UNRELEASED; urgency=low
+
+  * New major upstream version 9.5.
+
+ -- Christoph Berg <myon@debian.org>  Fri, 13 Jun 2014 14:59:18 +0200

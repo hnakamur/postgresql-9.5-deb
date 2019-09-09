@@ -1,3 +1,10 @@
+postgresql-9.5 (9.5.19-1.pgdg18.04+1ppa1) bionic; urgency=medium
+
+  * Rebuild for bionic on PPA.
+  * No source change.
+
+ -- Hiroaki Nakamura <hnakamur@gmail.com>  Mon, 09 Sep 2019 14:20:12 +0900
+
 postgresql-9.5 (9.5.19-1.pgdg18.04+1) bionic-pgdg; urgency=medium
 
   * Rebuild for bionic-pgdg.
